@@ -1,0 +1,14 @@
+{
+  "note": "Grouping only. The live default matrix is gateway/src/coverage.ts. Edits on the compliance page land in jurisdiction_access, category_access, and mode_access.",
+  "regions": {
+    "east": ["CN", "HK", "MO", "TW", "JP", "KR", "KP", "MN"],
+    "southeast": ["BN", "KH", "ID", "LA", "MY", "MM", "PH", "SG", "TH", "TL", "VN"],
+    "south": ["AF", "BD", "BT", "IN", "IR", "MV", "NP", "PK", "LK"],
+    "west": ["AE", "AM", "AZ", "BH", "CY", "GE", "IL", "IQ", "JO", "KW", "LB", "OM", "PS", "QA", "SA", "SY", "TR", "YE"],
+    "central": ["KZ", "KG", "TJ", "TM", "UZ"],
+    "us": ["US"]
+  },
+  "sanctionedLocked": ["KP", "IR", "SY"],
+  "edd": ["AF", "MM"],
+  "cryptoClosed": ["CN", "BD", "NP", "QA", "KW", "OM", "IQ", "AF"]
+}

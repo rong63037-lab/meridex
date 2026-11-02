@@ -1,0 +1,79 @@
+name: m1
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: meridex
+          POSTGRES_PASSWORD: <redacted>
+          POSTGRES_DB: meridex
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meridex -d meridex"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.83.0"
+      - name: Matching engine tests
+        run: cargo test --manifest-path engine/Cargo.toml -- --test-threads=8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Gateway dependencies
+        working-directory: gateway
+        run: npm install
+      - name: Startup pid guard and copy facts
+        run: |
+          bash tests/start-meridex-pid.test.sh
+          node tests/copy-lang.test.mjs
+          node tests/no-demo-ui.test.mjs
+          node tests/prelaunch-static.test.mjs
+          node tests/pool-desk-ui.test.mjs
+          node tests/sim-mode-ui.test.mjs
+          (cd gateway && npx tsx ../tests/qty-unit.test.ts)
+          (cd gateway && npx tsx ../tests/pool-paste.test.ts && npx tsx src/pool.preview.test.ts)
+      - name: TOTP vectors
+        working-directory: gateway
+        run: npx tsx src/totp.test.ts
+      - name: Build engine binary
+        run: cargo build --manifest-path engine/Cargo.toml
+      - name: Boot sandbox and run HTTP acceptance
+        env:
+          DATABASE_URL: postgres://meridex:<redacted>@127.0.0.1:5432/meridex
+          ENGINE_URL: http://127.0.0.1:7109
+          GATEWAY_PORT: "7108"
+          JWT_SECRET: <redacted>
+          SEED_DEMO: "1"
+          BOTS: "0"
+          SANDBOX_MOCK_GEO: "1"
+          ENGINE_BIN: ${{ github.workspace }}/engine/target/debug/meridex-engine
+        run: |
+          mkdir -p data
+          ENGINE_BIND=127.0.0.1:7109 ENGINE_JOURNAL=$PWD/data/journal.jsonl ENGINE_FSYNC_EVERY=50 ./engine/target/debug/meridex-engine serve &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:7109/health && break; sleep 1; done
+          curl -sf http://127.0.0.1:7109/health >/dev/null
+          (cd gateway && npx tsx src/index.ts) &
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:7108/healthz && break; sleep 1; done
+          curl -sf http://127.0.0.1:7108/healthz >/dev/null
+          cd gateway && npx tsx ../tests/acceptance/run.ts
+          npx tsx ../tests/manual-deposit.test.ts
+          npx tsx ../tests/ops-desk.test.ts
+      - name: Ledger conservation sample
+        env:
+          ORDERS: "2000"
+          ENGINE_BIN: ${{ github.workspace }}/engine/target/debug/meridex-engine
+          STRESS_ENGINE_PORT: "7119"
+        working-directory: gateway
+        run: npx tsx scripts/ledger-stress.ts

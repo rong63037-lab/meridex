@@ -1,0 +1,8 @@
+#!/bin/sh
+# Dry-run unless --confirm and --totp are both present.
+# Removes sandbox customers, play ledgers, sample orders, and seed content.
+# Keeps the owner, business parameters, content overrides, and the address pool.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+export NODE_PATH="$ROOT/gateway/node_modules${NODE_PATH:+:$NODE_PATH}"
+exec "$ROOT/gateway/node_modules/.bin/tsx" "$ROOT/scripts/prelaunch-reset.ts" "$@"

@@ -1,0 +1,7 @@
+**/node_modules
+**/.next
+**/target
+**/*.log
+data
+.git
+uploads
