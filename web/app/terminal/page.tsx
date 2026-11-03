@@ -573,6 +573,7 @@ export default function TerminalPage() {
               bars={bars}
               volumes={volumes}
               symbol={symbol}
+              priceDecimals={pd}
               tf={tf}
               studies={chartStudies}
               drawMode={drawMode}

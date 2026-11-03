@@ -1,5 +1,5 @@
 #!/bin/sh
-# Local container entrypoint: engine, gateway, and the web server on $PORT. Not a public deploy hook.
+# Sandbox container entrypoint: engine, gateway, and the web server on $PORT.
 set -eu
 mkdir -p /data
 
@@ -28,4 +28,4 @@ done
 
 cd /app/web
 trap 'kill "$engine_pid" "$gateway_pid" 2>/dev/null || true' EXIT INT TERM
-exec node server.mjs
+HOST=0.0.0.0 exec node server.mjs

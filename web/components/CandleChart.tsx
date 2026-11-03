@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 import { bollinger, ema, macd, rsi, type Studies } from "@/lib/indicators";
 import { getMarket, subscribeMarket } from "@/lib/marketBus";
-import { movingAverage, type Candle } from "@/lib/markets";
+import { formatPct, formatPx, movingAverage, type Candle } from "@/lib/markets";
 
 export type DrawKind = "trend" | "hline" | "fib";
 type Drawing = { id: string; kind: DrawKind; a: { time: number; price: number }; b: { time: number; price: number } };
@@ -14,6 +14,7 @@ type Props = {
   bars: Candle[];
   volumes?: (number | null)[] | null;
   symbol: string;
+  priceDecimals?: number;
   tf?: string;
   studies: Studies;
   drawMode: DrawKind | "none";
@@ -38,13 +39,21 @@ function lineData(bars: Candle[], values: (number | null)[]) {
   return bars.flatMap((bar, i) => (values[i] == null ? [] : [{ time: bar.time as UTCTimestamp, value: values[i] as number }]));
 }
 
-function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode, clearDraw, fitKey, onOlder }: Props) {
+function CandleChartInner({ bars, volumes, symbol, priceDecimals = 2, tf = "1m", studies, drawMode, clearDraw, fitKey, onOlder }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const layer = useRef<HTMLCanvasElement>(null);
   const api = useRef<Handle | null>(null);
   const drawings = useRef<Drawing[]>([]);
   const pending = useRef<Point | null>(null);
+  const barsRef = useRef(bars);
+  barsRef.current = bars;
+  const volumesRef = useRef(volumes);
+  volumesRef.current = volumes;
+  const studiesRef = useRef(studies);
+  studiesRef.current = studies;
   const [ready, setReady] = useState(0);
+  const [hoveredTime, setHoveredTime] = useState<number | null>(null);
+  const [liveBar, setLiveBar] = useState<Candle | null>(null);
   const fitted = useRef("");
   const lastBar = useRef<Candle | null>(null);
   const onOlderRef = useRef(onOlder);
@@ -94,6 +103,9 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
         });
       };
       chart.timeScale().subscribeVisibleTimeRangeChange(paint);
+      chart.subscribeCrosshairMove((param) => {
+        setHoveredTime(typeof param.time === "number" ? param.time : null);
+      });
       chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         const count = barCount.current;
         if (range && count > 20 && range.from < 2 && range.to - range.from < count - 5) onOlderRef.current?.();
@@ -107,6 +119,14 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
       api.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    setLiveBar(bars[bars.length - 1] ?? null);
+  }, [bars]);
+
+  useEffect(() => {
+    setHoveredTime(null);
+  }, [symbol, tf]);
 
   useEffect(() => {
     pending.current = null;
@@ -135,6 +155,9 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
   useEffect(() => {
     const handle = api.current;
     if (!handle || !bars.length) return;
+    handle.candle.applyOptions({
+      priceFormat: { type: "price", precision: priceDecimals, minMove: 1 / 10 ** priceDecimals },
+    });
     handle.candle.setData(bars.map((bar) => ({ time: bar.time as UTCTimestamp, open: bar.open, high: bar.high, low: bar.low, close: bar.close })));
     const closes = bars.map((bar) => bar.close);
     const useExternal = volumes && volumes.length === bars.length;
@@ -174,7 +197,7 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
       performance.mark("meridex-chart-paint");
     }
     drawOverlay();
-  }, [bars, volumes, studies, ready, fitKey]);
+  }, [bars, volumes, studies, ready, fitKey, priceDecimals]);
 
   useEffect(() => {
     let frame = 0;
@@ -202,7 +225,19 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
         };
         if (next.time === prev.time && next.close === prev.close && next.high === prev.high && next.low === prev.low) return;
         lastBar.current = next;
+        setLiveBar(next);
         handle.candle.update({ time: next.time as UTCTimestamp, open: next.open, high: next.high, low: next.low, close: next.close });
+        if (
+          studiesRef.current.vol &&
+          volumesRef.current?.length !== barsRef.current.length &&
+          next.volume > 0
+        ) {
+          handle.volume.update({
+            time: next.time as UTCTimestamp,
+            value: next.volume,
+            color: next.close >= next.open ? "rgba(61,220,151,0.45)" : "rgba(255,93,108,0.4)",
+          });
+        }
         const box = window as Window & { __meridexTick?: { sentAt: number; recvAt: number; paintedAt: number; engineMs: number } };
         box.__meridexTick = { sentAt: snap.sentAt, recvAt: snap.recvAt, paintedAt: Date.now(), engineMs: snap.engineMs };
       });
@@ -238,7 +273,7 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
         ctx.stroke();
-        ctx.fillText(item.a.price.toFixed(2), 8, y - 4);
+        ctx.fillText(formatPx(item.a.price, priceDecimals), 8, y - 4);
         continue;
       }
       const x1 = xOf(item.a.time);
@@ -306,10 +341,27 @@ function CandleChartInner({ bars, volumes, symbol, tf = "1m", studies, drawMode,
   }, [bars, studies.macd, studies.rsi]);
   const macdView = osc.macd;
   const rsiView = osc.rsi;
+  const selectedBar = hoveredTime === null
+    ? liveBar ?? bars[bars.length - 1] ?? null
+    : liveBar?.time === hoveredTime
+      ? liveBar
+      : barsRef.current.find((bar) => bar.time === hoveredTime) ?? null;
+  const barChange = selectedBar && selectedBar.open !== 0
+    ? (selectedBar.close - selectedBar.open) / selectedBar.open
+    : null;
 
   return (
     <div className="chart-stack">
       <div className="chart-stage">
+        {selectedBar ? (
+          <div className="chart-readout" aria-label={`${symbol} ${tf} OHLC`}>
+            <span><b>O</b> {formatPx(selectedBar.open, priceDecimals)}</span>
+            <span><b>H</b> {formatPx(selectedBar.high, priceDecimals)}</span>
+            <span><b>L</b> {formatPx(selectedBar.low, priceDecimals)}</span>
+            <span><b>C</b> {formatPx(selectedBar.close, priceDecimals)}</span>
+            <span className={barChange != null && barChange >= 0 ? "up" : "down"}>{formatPct(barChange)}</span>
+          </div>
+        ) : null}
         <div ref={host} className="chart-host" />
         <canvas ref={layer} className={`draw-layer ${drawMode === "none" ? "" : "on"}`} onPointerDown={onPointerDown} />
       </div>

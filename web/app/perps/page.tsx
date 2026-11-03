@@ -95,7 +95,11 @@ export default function PerpsPage() {
             </article>
           ))}
         </div>
-        {us ? null : (
+        {board == null ? (
+          error ? <p className="err">{error}</p> : null
+        ) : locked ? (
+          <p className="hint">{t.categoryPending}</p>
+        ) : (
         <section className="panel">
           <SimpleOrder
             symbols={(board?.markets ?? [{ symbol }]).map((item) => ({ symbol: item.symbol }))}
@@ -159,7 +163,6 @@ export default function PerpsPage() {
             }}
           />
           <p className="hint">{fillTemplate(t.qtyWithUnit, { unit })} · {fillTemplate(t.qtyMin, { n: spec.min, unit })}</p>
-          {locked ? <p className="hint">{t.categoryPending}</p> : null}
         </section>
         )}
         <ReferenceDepth symbol={symbol} />

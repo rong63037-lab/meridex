@@ -8,6 +8,7 @@ import { LedgerError } from "./ledger.js";
 import { ModeError, assertMode } from "./modes.js";
 import { PaperReject, paperEnabled, placePaperOrder } from "./paper.js";
 import { loadCustomer, placeOrder } from "./trading.js";
+import { liveServicesEnabled } from "./runtimeFlags.js";
 
 export type Cadence = "daily" | "weekly" | "monthly";
 
@@ -142,6 +143,7 @@ export async function runPlan(pool: Db, engine: EngineClient, userId: number, id
   }
   if (!manual && plan.status !== "active") throw new PlanError("PLAN_INACTIVE");
   const paper = plan.namespace === "paper";
+  if (!paper && !liveServicesEnabled()) throw new PlanError("LIVE_SERVICES_DISABLED");
   await assertMode(pool, userId, "recurring", paper);
   if (paper && !(await paperEnabled(pool, userId))) throw new PlanError("PAPER_OFF");
   const inst = await gateInstrument(pool, userId, plan.symbol as string);

@@ -14,7 +14,7 @@ engine-test:
 	cargo test --manifest-path engine/Cargo.toml -- --test-threads=8
 
 gateway-test:
-	cd gateway && npx tsx src/totp.test.ts && npx tsx src/addresses.test.ts
+	cd gateway && npx tsx src/totp.test.ts && npx tsx src/addresses.test.ts && npx tsx src/originPolicy.test.ts && npx tsx src/runtimeFlags.test.ts
 
 ui-test:
 	node tests/sim-mode-ui.test.mjs

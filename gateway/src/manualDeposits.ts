@@ -8,7 +8,7 @@ import { PlatformError } from "./errors.js";
 import { loadCatalog } from "./instruments.js";
 import { deposit, depositReversal, LedgerError, type CustomerRef } from "./ledger.js";
 import { loadCustomer } from "./trading.js";
-import { assertRealRails } from "./play.js";
+import { assertLiveServicesEnabled, assertRealRails } from "./play.js";
 import { formatScaled, parseScaled } from "./units.js";
 
 export const ASSET_NETWORKS: Record<string, { decimals: number; networks: string[] }> = {
@@ -247,6 +247,7 @@ export async function createClaim(
   input: { asset: string; network: string; amount: string; reference: string },
 ) {
   await assertRealRails(pool, userId);
+  assertLiveServicesEnabled();
   const asset = input.asset.trim().toUpperCase();
   const spec = ASSET_NETWORKS[asset];
   if (!spec || asset === "XAU") throw new PlatformError("VALIDATION");

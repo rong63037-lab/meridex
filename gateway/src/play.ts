@@ -6,6 +6,7 @@ import { generateTotpSecret, hashPassword } from "./crypto.js";
 import { loadNumbers } from "./content.js";
 import { PlatformError, assertPassword } from "./platform.js";
 import { LedgerError } from "./ledger.js";
+import { liveServicesEnabled } from "./runtimeFlags.js";
 import { getInstrument, loadCatalog, quoteNotional, type Instrument } from "./instruments.js";
 import type { OrderResponse } from "./trading.js";
 
@@ -27,6 +28,10 @@ export async function isInternalTest(pool: Db, userId: number): Promise<boolean>
 
 export async function assertRealRails(pool: Db, userId: number): Promise<void> {
   if (await isInternalTest(pool, userId)) throw new PlatformError("PLAY_ONLY", 403);
+}
+
+export function assertLiveServicesEnabled(): void {
+  if (!liveServicesEnabled()) throw new PlatformError("LIVE_SERVICES_DISABLED", 403);
 }
 
 export async function listInternal(pool: Db) {

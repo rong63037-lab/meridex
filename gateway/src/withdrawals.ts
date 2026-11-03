@@ -5,7 +5,7 @@ import { PlatformError } from "./errors.js";
 import { loadCatalog } from "./instruments.js";
 import { holdFunds, LedgerError, releaseHold, settleHold, type CustomerRef } from "./ledger.js";
 import { enqueueNotice, ingestSafe } from "./platform.js";
-import { assertRealRails } from "./play.js";
+import { assertLiveServicesEnabled, assertRealRails } from "./play.js";
 import { requireFreshTotp } from "./pool.js";
 import { loadCustomer } from "./trading.js";
 import { formatScaled } from "./units.js";
@@ -71,6 +71,7 @@ function notice(pool: Db, userId: number, title: string, body: string) {
 
 export async function enqueueWithdrawal(pool: Db, input: WithdrawInput): Promise<{ id: number; status: "pending" }> {
   await assertRealRails(pool, input.userId);
+  assertLiveServicesEnabled();
   const notional = usdNotional(input.asset, input.gross) ?? input.ledger;
   const fee = input.ledger > input.gross ? input.ledger - input.gross : 0n;
   let id = 0;

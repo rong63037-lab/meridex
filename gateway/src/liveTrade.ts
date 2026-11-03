@@ -33,6 +33,7 @@ import { feeOf, tierBps } from "./fees.js";
 import { walletAmount, type CustomerRef } from "./ledger.js";
 import { LpError, applyMarkup } from "./liquidity/types.js";
 import { cancelHedge, logShadow, markHedgeUnapplied, planRoute, sendHedge } from "./liquidity/route.js";
+import { liveServicesEnabled } from "./runtimeFlags.js";
 
 type OrderInput = {
   symbol: string;
@@ -181,6 +182,7 @@ function fillPrice(side: "buy" | "sell", mark: bigint, bid: bigint, ask: bigint)
 }
 
 export async function placeOrder(pool: Db, engine: EngineClient, userId: number, product: BookProduct, input: OrderInput) {
+  if (!input.reduceOnly && !liveServicesEnabled()) throw new LiveError("LIVE_SERVICES_DISABLED");
   const user = await assertVerified(pool, userId, product);
   const inst = instrumentFor(product, input.symbol);
   assertQty(inst, input.qty);

@@ -463,6 +463,10 @@ svg.mark { background: none; }
 .chart-stack { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .chart-stage { position: relative; flex: 1; min-height: 360px; display: flex; }
 .chart-stage > .chart-host { flex: 1; width: 100%; min-height: 360px; height: auto; }
+.chart-readout { position: absolute; z-index: 2; top: 10px; left: 12px; display: flex; flex-wrap: wrap; gap: 5px 12px; max-width: calc(100% - 96px); padding: 6px 9px; border: 1px solid rgba(245, 213, 138, 0.12); border-radius: 7px; background: rgba(13, 15, 18, 0.82); color: var(--muted); font: 11px/1.4 "IBM Plex Mono", ui-monospace, monospace; pointer-events: none; backdrop-filter: blur(6px); }
+.chart-readout b { color: var(--muted); font-weight: 500; }
+.chart-readout .up { color: var(--bid); }
+.chart-readout .down { color: var(--ask); }
 .draw-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .draw-layer.on { pointer-events: auto; cursor: crosshair; }
 .osc { display: grid; grid-template-columns: 52px 1fr; gap: 6px; align-items: center; height: 64px; }
@@ -473,6 +477,9 @@ svg.mark { background: none; }
 .osc line { stroke: rgba(154, 163, 178, 0.35); stroke-width: 1; }
 .tf { flex-wrap: wrap; }
 .tf .tool-gap { flex: 1; }
+@media (max-width: 640px) {
+  .chart-readout { top: 6px; left: 6px; gap: 3px 8px; max-width: calc(100% - 72px); padding: 5px 7px; font-size: 10px; }
+}
 .resize-handle { position: absolute; top: 8px; bottom: 8px; width: 8px; border: 0; padding: 0; background: transparent; cursor: col-resize; z-index: 3; }
 .resize-handle:hover { background: rgba(127, 212, 232, 0.25); }
 .mkts, .book-col, .ticket-col { position: relative; }
@@ -757,6 +764,7 @@ input[type="range"] { width: 100%; accent-color: #C9A24B; margin: 8px 0 12px; }
 .nav-more > summary::-webkit-details-marker { display: none; }
 .nav-more > summary:hover, .nav-more[open] > summary, .nav-more > summary.active { color: var(--gold-2); border-color: rgba(201, 162, 75, 0.45); }
 .nav-more-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 220px; background: #12161c; border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); }
+.nav-more:not([open]) > .nav-more-pop { display: none; }
 .settings-menu .nav-more-pop { left: auto; right: 0; }
 .nav-more-pop a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--text); font-size: 13px; }
 .nav-more-pop a:hover, .nav-more-pop a.active { background: rgba(224, 177, 90, 0.12); color: var(--gold-2); }

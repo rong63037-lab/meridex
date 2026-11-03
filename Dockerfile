@@ -34,6 +34,7 @@ ENV NODE_ENV=production \
     SEED_DEMO=1 \
     BOTS=1 \
     SANDBOX_MOCK_GEO=1 \
+    LIVE_SERVICES_ENABLED=0 \
     ENGINE_BIND=127.0.0.1:7109 \
     ENGINE_JOURNAL=/data/journal.jsonl \
     ENGINE_URL=http://127.0.0.1:7109 \

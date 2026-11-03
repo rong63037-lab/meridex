@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: meridex-sandbox
+    runtime: docker
+    region: singapore
+    plan: 1c-2g
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /healthz
+    disk:
+      name: engine-journal
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: meridex-sandbox-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LIVE_SERVICES_ENABLED
+        value: "0"
+      - key: SEED_DEMO
+        value: "1"
+      - key: BOTS
+        value: "1"
+      - key: SANDBOX_MOCK_GEO
+        value: "1"
+      - key: ENGINE_BIND
+        value: 127.0.0.1:7109
+      - key: ENGINE_JOURNAL
+        value: /data/journal.jsonl
+      - key: ENGINE_URL
+        value: http://127.0.0.1:7109
+      - key: GATEWAY_PORT
+        value: "7108"
+      - key: GATEWAY_HOST
+        value: 127.0.0.1
+      - key: API_INTERNAL_URL
+        value: http://127.0.0.1:7108
+
+databases:
+  - name: meridex-sandbox-db
+    databaseName: meridex
+    user: meridex
+    region: singapore
+    plan: 0.5c-1g
+    diskSizeGB: 15

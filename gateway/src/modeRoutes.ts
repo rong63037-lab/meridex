@@ -35,7 +35,7 @@ import { paperEnabled } from "./paper.js";
 import { asPlanError, createPlan, listPlans, runPlan, setClock, setPlanStatus, type Cadence } from "./recurring.js";
 import { parseScaled } from "./units.js";
 import { PlatformError } from "./platform.js";
-import { assertRealRails } from "./play.js";
+import { assertLiveServicesEnabled, assertRealRails } from "./play.js";
 
 type Authed = { id: number; email: string; role: string };
 
@@ -114,6 +114,12 @@ export function registerModeRoutes(
     if (!user) return null;
     try {
       await assertRealRails(pool, user.id);
+      const path = (req.url || "").split("?")[0];
+      const reducing = req.method === "GET" || (
+        req.method === "POST" &&
+        /^\/api\/(margin|perps)\/(?:close-all|orders\/[^/]+\/cancel|positions\/[^/]+\/close)$/.test(path)
+      );
+      if (!reducing && !(await paperEnabled(pool, user.id))) assertLiveServicesEnabled();
     } catch (err) {
       if (err instanceof PlatformError) {
         reply.code(err.status).send({ error: err.code });

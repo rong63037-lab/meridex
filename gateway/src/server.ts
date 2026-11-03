@@ -58,6 +58,8 @@ import {
   setPaperEnabled,
 } from "./paper.js";
 import { parseScaled } from "./units.js";
+import { createOriginPolicy } from "./originPolicy.js";
+import { liveServicesEnabled } from "./runtimeFlags.js";
 import {
   assertRealRails,
   cancelAllPlay,
@@ -183,11 +185,13 @@ type Client = { ws: WebSocket; userId: number | null; symbol: string; tf: string
 export async function buildServer(pool: Db, engine: EngineClient, jwtSecret: string) {
   let policy = await loadPolicy(pool);
   const app = Fastify({ logger: false, bodyLimit: 64 * 1024 });
+  const originAllowed = createOriginPolicy();
+  const secureCookie = process.env.NODE_ENV === "production" ? "; Secure" : "";
   const adminAllow = (process.env.ADMIN_IP_ALLOWLIST ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: (origin, callback) => callback(null, originAllowed(origin)) });
   app.addHook("onRequest", async (req, reply) => {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("X-Frame-Options", "DENY");
@@ -203,15 +207,7 @@ export async function buildServer(pool: Db, engine: EngineClient, jwtSecret: str
     }
     if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return;
     const origin = req.headers.origin;
-    if (!origin) return;
-    try {
-      const host = new URL(origin).hostname;
-      if (host !== "localhost" && host !== "127.0.0.1") {
-        return reply.code(403).send({ error: "CSRF_ORIGIN" });
-      }
-    } catch {
-      return reply.code(403).send({ error: "CSRF_ORIGIN" });
-    }
+    if (origin && !originAllowed(origin)) return reply.code(403).send({ error: "CSRF_ORIGIN" });
   });
   const clients = new Set<Client>();
 
@@ -712,10 +708,10 @@ export async function buildServer(pool: Db, engine: EngineClient, jwtSecret: str
       jwtSecret,
     );
     const cookie = portal === "staff"
-      ? `meridex_staff=${encodeURIComponent(token)}; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=43200`
+      ? `meridex_staff=${encodeURIComponent(token)}; Path=/api/admin; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=43200`
       : portal === "pool"
-        ? `meridex_pool=${encodeURIComponent(token)}; Path=/api/pool; HttpOnly; SameSite=Lax; Max-Age=43200`
-        : `meridex_customer=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200`;
+        ? `meridex_pool=${encodeURIComponent(token)}; Path=/api/pool; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=43200`
+        : `meridex_customer=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=43200`;
     reply.header("Set-Cookie", cookie);
     return { token, role: user.role, portal };
   }
@@ -724,15 +720,15 @@ export async function buildServer(pool: Db, engine: EngineClient, jwtSecret: str
   app.post("/api/admin/auth/login", login);
   app.post("/api/pool/auth/login", login);
   app.post("/api/auth/logout", async (_req, reply) => {
-    reply.header("Set-Cookie", "meridex_customer=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+    reply.header("Set-Cookie", `meridex_customer=; Path=/; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=0`);
     return { ok: true };
   });
   app.post("/api/admin/auth/logout", async (_req, reply) => {
-    reply.header("Set-Cookie", "meridex_staff=; Path=/api/admin; HttpOnly; SameSite=Lax; Max-Age=0");
+    reply.header("Set-Cookie", `meridex_staff=; Path=/api/admin; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=0`);
     return { ok: true };
   });
   app.post("/api/pool/auth/logout", async (_req, reply) => {
-    reply.header("Set-Cookie", "meridex_pool=; Path=/api/pool; HttpOnly; SameSite=Lax; Max-Age=0");
+    reply.header("Set-Cookie", `meridex_pool=; Path=/api/pool; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=0`);
     return { ok: true };
   });
 
@@ -867,16 +863,9 @@ export async function buildServer(pool: Db, engine: EngineClient, jwtSecret: str
   });
 
   async function blockPlay(reply: FastifyReply, userId: number): Promise<boolean> {
-    try {
-      await assertRealRails(pool, userId);
-      return false;
-    } catch (err) {
-      if (err instanceof PlatformError) {
-        reply.code(err.status).send({ error: err.code });
-        return true;
-      }
-      throw err;
-    }
+    if (!(await isInternalTest(pool, userId))) return false;
+    reply.code(403).send({ error: "PLAY_ONLY" });
+    return true;
   }
 
   app.get("/api/activity", async (req, reply) => {
@@ -1655,6 +1644,7 @@ export async function buildServer(pool: Db, engine: EngineClient, jwtSecret: str
     const user = await requireUser(req, reply);
     if (!user) return;
     if (await blockPlay(reply, user.id)) return;
+    if (!liveServicesEnabled()) return reply.code(403).send({ error: "LIVE_SERVICES_DISABLED" });
     const body = z
       .object({
         asset: z.string().min(2).max(12),
@@ -2089,6 +2079,7 @@ async function balancesFor(pool: Db, userId: number) {
 }
 
 async function tradingGate(pool: Db, req: FastifyRequest, user: Authed, policy: Policy) {
+  if (!liveServicesEnabled()) return { status: 403, error: "LIVE_SERVICES_DISABLED" };
   const profile = await pool.query(
     `SELECT status, residence_country, reason, sanctions_hit FROM kyc_profiles WHERE user_id = $1`,
     [user.id],

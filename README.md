@@ -32,6 +32,8 @@
 需要 Docker。
 
 ```bash
+cp .env.example .env
+# Replace both values with independent random secrets before starting.
 docker compose up --build
 ```
 
@@ -40,6 +42,12 @@ docker compose up --build
 ## 不公开发布
 
 这个沙盒只在本机运行。没有公开部署，没有托管 Blueprint，也没有部署钩子。不要把它接到公网、真实银行或真实 KYC。横幅和风险披露页会一直说明牌照申请进行中，并且没有真实资金。
+
+### Render 沙盒演示
+
+仓库根目录的 `render.yaml` 可在 Render 创建一个常驻 Docker Web 服务、一个托管 PostgreSQL 数据库和撮合日志持久盘。它只用于公开演示：真实服务开关固定为关闭，仍使用演示播种、机器人和模拟地理定位；不得用于真实资金或正式金融业务。Web 服务通过 `/healthz` 检查网关、数据库和撮合引擎，异常时由平台健康检查触发恢复。部署/维护期间 WebSocket 仍可能短暂断开并自动重连。
+
+部署前先将变更合并到要部署的 GitHub 分支，再在 Render Dashboard 新建 Blueprint 并选择该仓库的 `render.yaml`。Blueprint 使用新加坡区域、常驻付费规格和持久化存储；Render 会在创建前显示预计费用。不要改成会休眠的免费实例，否则空闲后唤醒会造成行情中断。数据库和撮合日志盘都需要持续付费及备份安排。部署后验证站点的 `/healthz` 返回成功，并在浏览器检查行情 WebSocket；这份配置不会自动创建自定义域名，也不会自动启用真实产品。
 
 充值地址来自创始人导入的地址池，不从扩展公钥派生。导入、修改、停用、删除和改分配只在地址后台 `http://127.0.0.1:4319`。登录仍是 `founder@`，每一次写入都要再验一次验证器上的新验证码。主后台只能查看。其他员工只能看打码后的地址。客户资金页和坐席发出的充值地址卡片都只读这张分配表，坐席不能在聊天里手打地址。客户发给坐席的消息不会被拦截；坐席只有在写出一张跟该客户无关的收款地址时才会被拦住。角色为 admin 的账号可以自己通过自己提交的运营变更，并写入审计。客户文案和费率在主后台的「文案与参数」里改，几秒内生效，不用重新构建。每个客户有一个稳定的资金账号 `MXF-` 加 8 位十六进制，写在客户钱包和入金附言上，也可在文案里改「资金账号」这几个字。主后台的入金和出金在「资金」一页：上面是待办，点一次确认并填写验证码。客户档案在「客户」。入账仍然只从主后台发生。
 
@@ -51,6 +59,15 @@ docker compose up --build
 | 网关 | 7108 |
 | 撮合引擎 | 7109 |
 | Postgres | 仅容器内 5432 |
+
+## 一键安装（macOS）
+
+```bash
+./install-macos.sh
+./start-local.sh
+```
+
+这会自动安装 Rust、Homebrew 依赖、PostgreSQL 16、创建 `meridex` 用户和库，并安装前后端依赖。之后用 `./start-local.sh` 启动 5 个进程。
 
 ## 不用 Docker 时
 
@@ -82,6 +99,10 @@ API_INTERNAL_URL=http://127.0.0.1:7108 PORT=4319 node server.mjs
 ```
 
 客户站点是 4317，管理后台是 4318，地址后台是 4319。员工账号在客户登录会被拒绝（`STAFF_PORTAL`），客户账号在后台登录会被拒绝（`CUSTOMER_PORTAL`）。客户站点不代理 `/api/admin`。后台只代理 `/api/admin`。地址后台只代理 `/api/pool`。会话 cookie 分别是 `meridex_customer`（Path=/）、`meridex_staff`（Path=/api/admin）和 `meridex_pool`（Path=/api/pool）。客户站点、两个后台和网关默认只监听 `127.0.0.1`。要对网卡开放时分别设 `HOST`、`ADMIN_HOST`、`POOL_HOST`、`GATEWAY_HOST`（容器里用 `0.0.0.0`）。后台还可以设 `ADMIN_IP_ALLOWLIST=127.0.0.1`。也可以用 `./start-local.sh` 拉起五个进程，用 `python3 verify-local.py` 检查分离是否还在。
+
+网关 CORS 和写请求的 Origin 检查共用精确源白名单。开发环境默认只允许本机 4317–4319；反向代理部署时，用逗号分隔的完整源设置 `CORS_ORIGINS`（例如 `https://customer.example,https://staff.example,https://pool.example`）。生产模式的会话 Cookie 带 `Secure`，因此必须通过 HTTPS 提供页面。
+
+**运行时安全默认值：** `LIVE_SERVICES_ENABLED` 只有明确设置为 `1` 才会启用真实客户交易与资金服务；未设置、`0` 或其他值均关闭。关闭时，真实现货交易、闪兑、定投执行、杠杆/永续/跟单新仓、客户入金申请和出金申请均会被网关拒绝；现有杠杆/永续仓位的减仓/平仓、撤单与只读查询仍可用。模拟账本按独立的模拟模式开关运行，不会因为此真实服务开关而启用真实资金功能。Docker Compose 仅供沙盒使用，HTTP 端口绑定到本机回环地址；不要直接作为公网生产部署。
 
 数据库需要先有角色和库 `meridex` / `meridex`。第一次启动会跑 `db/migrations`，并写入预置账户和一段开盘成交。已有的旧库不要指给网关：新建 `meridex` 角色和空库，让网关重新播种。压测库是 `meridex_test`。
 

@@ -3,7 +3,7 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: meridex
-      POSTGRES_PASSWORD: <redacted>
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: meridex
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -25,7 +25,7 @@ services:
     volumes:
       - enginedata:/data
     ports:
-      - "7109:7109"
+      - "127.0.0.1:7109:7109"
 
   gateway:
     build:
@@ -35,13 +35,14 @@ services:
       GATEWAY_PORT: "7108"
       GATEWAY_HOST: 0.0.0.0
       ENGINE_URL: http://engine:7109
-      DATABASE_URL: postgres://meridex:<redacted>@postgres:5432/meridex
-      JWT_SECRET: <redacted>
+      DATABASE_URL: postgres://meridex:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/meridex
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      LIVE_SERVICES_ENABLED: ${LIVE_SERVICES_ENABLED:-0}
       SEED_DEMO: "1"
       BOTS: "1"
       SANDBOX_MOCK_GEO: "1"
     ports:
-      - "7108:7108"
+      - "127.0.0.1:7108:7108"
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,7 +63,7 @@ services:
       HOST: 0.0.0.0
       API_INTERNAL_URL: http://gateway:7108
     ports:
-      - "4317:4317"
+      - "127.0.0.1:4317:4317"
     depends_on:
       gateway:
         condition: service_healthy
