@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: meridex
+      POSTGRES_PASSWORD: <redacted>
+      POSTGRES_DB: meridex
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meridex -d meridex"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  engine:
+    build: ./engine
+    environment:
+      ENGINE_BIND: 0.0.0.0:7109
+      ENGINE_JOURNAL: /data/journal.jsonl
+      ENGINE_REF_PRICE: "13000"
+      ENGINE_BAND_BPS: "500"
+      ENGINE_HALT_BPS: "200"
+      ENGINE_FSYNC_EVERY: "25"
+    volumes:
+      - enginedata:/data
+    ports:
+      - "7109:7109"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      GATEWAY_PORT: "7108"
+      GATEWAY_HOST: 0.0.0.0
+      ENGINE_URL: http://engine:7109
+      DATABASE_URL: postgres://meridex:<redacted>@postgres:5432/meridex
+      JWT_SECRET: <redacted>
+      SEED_DEMO: "1"
+      BOTS: "1"
+      SANDBOX_MOCK_GEO: "1"
+    ports:
+      - "7108:7108"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      engine:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7108/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  web:
+    build: ./web
+    environment:
+      NODE_ENV: production
+      PORT: "4317"
+      HOST: 0.0.0.0
+      API_INTERNAL_URL: http://gateway:7108
+    ports:
+      - "4317:4317"
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  enginedata:

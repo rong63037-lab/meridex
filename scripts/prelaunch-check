@@ -1,0 +1,7 @@
+#!/bin/sh
+# Read-only go-live readiness check. Prints PASS or FAIL per item and exits non-zero on any FAIL.
+# It does not deploy, register, purchase, or change the database.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+export NODE_PATH="$ROOT/gateway/node_modules${NODE_PATH:+:$NODE_PATH}"
+exec "$ROOT/gateway/node_modules/.bin/tsx" "$ROOT/scripts/prelaunch-check.ts" "$@"

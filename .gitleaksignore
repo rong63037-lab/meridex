@@ -1,0 +1,4 @@
+# RFC 6238 public TOTP test vector (base32 of "12345678901234567890")
+gateway/src/totp.test.ts:generic-api-key:5
+# Fake LP adapter canary (not a real credential)
+tests/lp-adapters.test.ts:generic-api-key:31
